@@ -1,0 +1,77 @@
+# ============================================================
+# GitHub Actions 워크플로우: 리빙 페스타 대시보드 자동 업데이트
+# ============================================================
+#
+# 이 파일이 하는 일:
+#   · 매일 오전 10시 (한국 시간)에 자동으로 대시보드를 재생성
+#   · Google Sheets에서 최신 데이터를 읽어와 HTML 대시보드 업데이트
+#   · docs/index.html을 자동 커밋 → GitHub Pages에 반영
+#   · 수동으로도 GitHub Actions 탭에서 즉시 실행 가능
+#
+# 한국 시간 = UTC + 9시간
+#   → 한국 오전 10시 = UTC 오전 1시 = cron: "0 1 * * *"
+# ============================================================
+
+name: 리빙 페스타 대시보드 자동 업데이트
+
+on:
+  # ── 스케줄 실행 ─────────────────────────────────────────
+  # 매일 UTC 01:00 (= 한국 오전 10:00)
+  schedule:
+    - cron: '0 1 * * *'
+
+  # ── 수동 실행 버튼 ──────────────────────────────────────
+  # GitHub 저장소 → Actions 탭 → 이 워크플로우 선택 → "Run workflow"
+  workflow_dispatch:
+
+# ── GitHub Pages 배포를 위한 쓰기 권한 ──────────────────
+permissions:
+  contents: write
+
+# ── 실행할 작업 정의 ──────────────────────────────────────
+jobs:
+  update-dashboard:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1단계: 저장소 코드 가져오기
+      - name: 저장소 코드 가져오기
+        uses: actions/checkout@v4
+
+      # 2단계: Python 환경 설정
+      - name: Python 설치 및 설정
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # 3단계: 필요한 Python 패키지 설치
+      - name: Python 패키지 설치
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements_dashboard.txt
+
+      # 4단계: Google Sheets 인증 토큰 복원
+      #   GitHub Secrets에 base64로 저장된 토큰을 파일로 복원
+      - name: Google Sheets 인증 파일 복원
+        run: |
+          mkdir -p credentials
+          echo "${{ secrets.SHEETS_TOKEN_PICKLE_B64 }}" | base64 --decode > credentials/token_sheets.pickle
+          echo "${{ secrets.GOOGLE_CREDENTIALS_JSON_B64 }}" | base64 --decode > credentials/google_credentials.json
+
+      # 5단계: 대시보드 생성
+      - name: 대시보드 HTML 생성
+        run: python festa_dashboard.py
+        env:
+          SHEETS_TOKEN_PATH: credentials/token_sheets.pickle
+          SHEETS_CREDENTIALS_PATH: credentials/google_credentials.json
+
+      # 6단계: 변경사항 자동 커밋 & 푸시
+      #   데이터가 변경되었을 때만 커밋 (변경 없으면 스킵)
+      - name: 변경사항 커밋 및 푸시
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/index.html
+          # 변경사항이 있을 때만 커밋 (없으면 정상 종료)
+          git diff --staged --quiet || git commit -m "대시보드 자동 업데이트 ($(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M'))"
+          git push
