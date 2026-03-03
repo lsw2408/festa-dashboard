@@ -156,6 +156,67 @@ def fetch_sheet_brand_data(sheet_name, service, allowed_dates=None):
     return df
 
 
+def fetch_daily_gmv_summary(service):
+    """2월_리빙페스타 실적 시트의 T열에서 일자별 GMV 요약 데이터를 읽어 반환.
+
+    시트의 S11:U 영역에 일자별 GMV2와 누적 GMV2가 정리되어 있음.
+    (S열: 일자, T열: GMV2, U열: 누적 GMV2)
+
+    Returns:
+        {"daily_gmv": [일별 GMV 리스트], "cumulative": [누적 GMV 리스트],
+         "dates": [날짜 리스트], "total": 총 누적 GMV} 또는 실패 시 None
+    """
+    try:
+        # S11:U 범위를 넉넉하게 읽기 (최대 30일까지 대응)
+        range_str = f"'{SHEET_NAMES['feb']}'!S11:U50"
+        result = service.spreadsheets().values().get(
+            spreadsheetId=SPREADSHEET_ID,
+            range=range_str,
+        ).execute()
+        rows = result.get("values", [])
+        if not rows:
+            print("[Sheets] T열 일자별 요약 데이터 없음")
+            return None
+
+        # 첫 행은 제목("2월 리빙페스타 기간 GMV"), 두 번째 행은 헤더("일자", "GMV2", "누적 GMV2")
+        # 세 번째 행부터 실제 데이터
+        daily_gmv = []
+        cumulative = []
+        dates = []
+        for row in rows:
+            # 데이터 행: S열에 날짜(예: "2/23"), T열에 GMV2, U열에 누적 GMV2
+            if len(row) < 3:
+                continue
+            date_val = str(row[0]).strip()
+            # 날짜 형식 확인 ("2/23", "3/1" 등 또는 "0223" 형식)
+            if not date_val or date_val in ("일자", "GMV2", "누적 GMV2", "2월 리빙페스타 기간 GMV"):
+                continue
+            try:
+                gmv_val = int(str(row[1]).replace(",", ""))
+                cum_val = int(str(row[2]).replace(",", ""))
+                dates.append(date_val)
+                daily_gmv.append(gmv_val)
+                cumulative.append(cum_val)
+            except (ValueError, IndexError):
+                continue
+
+        if not daily_gmv:
+            print("[Sheets] T열 일자별 요약: 유효한 데이터 없음")
+            return None
+
+        total = cumulative[-1] if cumulative else sum(daily_gmv)
+        print(f"[Sheets] T열 일자별 요약: {len(daily_gmv)}일치 로드 (총 GMV: {total:,}원)")
+        return {
+            "daily_gmv": daily_gmv,
+            "cumulative": cumulative,
+            "dates": dates,
+            "total": total,
+        }
+    except Exception as e:
+        print(f"[Sheets] T열 일자별 요약 로드 실패: {e}")
+        return None
+
+
 def load_full_brand_data():
     """3개 시트에서 브랜드 데이터를 읽어 dict로 반환.
 
@@ -1430,8 +1491,28 @@ def build_html():
         # 11월/12월은 행사 종료된 전체 기간 데이터(하드코딩)를 유지하여
         # 일별 추이 차트·스파크라인에서 전체 기간(15일/10일)을 표시
         global feb_daily_gmv
-        feb_daily = brand_dfs["feb"].groupby("ord_dt")["gmv2"].sum()
-        feb_daily_gmv = feb_daily.sort_index().tolist()
+
+        # T열 일자별 매출 요약 데이터를 우선 사용 (시트에 정리된 공식 데이터)
+        # B열 상품 데이터는 ~29,000행으로 API 응답 크기 제한에 걸릴 수 있으므로
+        # T열 요약이 더 안정적
+        from googleapiclient.discovery import build as _build
+        _creds = get_sheets_credentials()
+        daily_summary = None
+        if _creds:
+            _svc = _build("sheets", "v4", credentials=_creds)
+            daily_summary = fetch_daily_gmv_summary(_svc)
+
+        if daily_summary and daily_summary["daily_gmv"]:
+            feb_daily_gmv = daily_summary["daily_gmv"]
+            feb_total_gmv_val = daily_summary["total"]
+            num_days = len(daily_summary["daily_gmv"])
+            feb_period = f"2/23 ~ 진행중 ({num_days}일차)"
+            print(f"[Sheets] T열 요약 데이터 사용: {num_days}일치, 총 GMV: {feb_total_gmv_val:,}원")
+        else:
+            # T열 실패 시 B열 상품 데이터에서 집계
+            feb_daily = brand_dfs["feb"].groupby("ord_dt")["gmv2"].sum()
+            feb_daily_gmv = feb_daily.sort_index().tolist()
+            print(f"[Sheets] B열 상품 데이터에서 일별 GMV 집계: {len(feb_daily_gmv)}일치")
 
         # 브랜드 차트 및 TOP 상품용 df 동적 계산
         global df_nov, df_dec, df_feb
@@ -1443,7 +1524,26 @@ def build_html():
 
         print(f"[Sheets] 소싱유형·총GMV·카테고리·일별추이 동적 계산 완료 — 2월 총GMV: {feb_total_gmv_val:,}원")
     else:
-        num_days = 1  # fallback 기본값
+        # brand_dfs 로드 실패 시에도 T열 요약 데이터는 시도
+        try:
+            from googleapiclient.discovery import build as _build2
+            _creds2 = get_sheets_credentials()
+            if _creds2:
+                _svc2 = _build2("sheets", "v4", credentials=_creds2)
+                daily_summary = fetch_daily_gmv_summary(_svc2)
+                if daily_summary and daily_summary["daily_gmv"]:
+                    feb_daily_gmv = daily_summary["daily_gmv"]
+                    feb_total_gmv_val = daily_summary["total"]
+                    num_days = len(daily_summary["daily_gmv"])
+                    feb_period = f"2/23 ~ 진행중 ({num_days}일차)"
+                    print(f"[Sheets] fallback: T열 요약 데이터 사용: {num_days}일치")
+                else:
+                    num_days = len(feb_daily_gmv)
+            else:
+                num_days = len(feb_daily_gmv)
+        except Exception as e:
+            print(f"[Sheets] fallback T열 로드 실패: {e}")
+            num_days = len(feb_daily_gmv)
 
     # 동기간 라벨 (예: "D+2", "2일차")
     d_label = f"D+{num_days}"
