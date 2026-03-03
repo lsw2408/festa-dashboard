@@ -183,13 +183,17 @@ def fetch_daily_gmv_summary(service):
         daily_gmv = []
         cumulative = []
         dates = []
+        # 날짜 패턴: "2/23", "3/1", "12/25" 등 (월/일 형식만 허용)
+        import re
+        date_pattern = re.compile(r"^\d{1,2}/\d{1,2}$")
         for row in rows:
             # 데이터 행: S열에 날짜(예: "2/23"), T열에 GMV2, U열에 누적 GMV2
             if len(row) < 3:
                 continue
             date_val = str(row[0]).strip()
-            # 날짜 형식 확인 ("2/23", "3/1" 등 또는 "0223" 형식)
-            if not date_val or date_val in ("일자", "GMV2", "누적 GMV2", "2월 리빙페스타 기간 GMV"):
+            # 날짜 형식 검증: "2/23", "3/1" 같은 월/일 패턴만 허용
+            # "3일차", 숫자, 빈 값, 헤더 텍스트 등은 모두 제외
+            if not date_pattern.match(date_val):
                 continue
             try:
                 gmv_val = int(str(row[1]).replace(",", ""))
