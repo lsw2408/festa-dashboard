@@ -24,6 +24,11 @@ on:
   # GitHub 저장소 → Actions 탭 → 이 워크플로우 선택 → "Run workflow"
   workflow_dispatch:
 
+  # ── 임시 push 트리거 (수동 업데이트용) ──────────────────
+  push:
+    branches:
+      - main
+
 # ── GitHub Pages 배포를 위한 쓰기 권한 ──────────────────
 permissions:
   contents: write
