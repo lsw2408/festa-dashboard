@@ -656,7 +656,7 @@ def create_daily_trend_chart():
         mode="lines+markers", marker=dict(size=6),
         fill='tozeroy', fillcolor='rgba(95,0,128,0.08)',
         legendrank=3,
-        hovertemplate="D+%{x}<br>GMV2: %{y:,.0f}원<extra>11월</extra>"
+        hovertemplate="<b>11월 블랙위크</b><br>%{x}<br>GMV2: %{y:,.0f}원<extra></extra>"
     ), row=1, col=1)
 
     fig.add_trace(go.Scatter(
@@ -665,7 +665,7 @@ def create_daily_trend_chart():
         mode="lines+markers", marker=dict(size=6),
         fill='tozeroy', fillcolor='rgba(245,124,0,0.08)',
         legendrank=2,
-        hovertemplate="D+%{x}<br>GMV2: %{y:,.0f}원<extra>12월</extra>"
+        hovertemplate="<b>12월 리빙페스타</b><br>%{x}<br>GMV2: %{y:,.0f}원<extra></extra>"
     ), row=1, col=1)
 
     fig.add_trace(go.Scatter(
@@ -674,7 +674,7 @@ def create_daily_trend_chart():
         mode="lines+markers", marker=dict(size=10),
         fill='tozeroy', fillcolor='rgba(0,191,165,0.12)',
         legendrank=1,
-        hovertemplate="D+%{x}<br>GMV2: %{y:,.0f}원<extra>2월</extra>"
+        hovertemplate="<b>2월 리빙페스타</b><br>%{x}<br>GMV2: %{y:,.0f}원<extra></extra>"
     ), row=1, col=1)
 
     # 11월/12월 평균 일매출 점선
@@ -698,21 +698,21 @@ def create_daily_trend_chart():
         x=d_days[:len(nov_cum)], y=nov_cum,
         name="11월 누적", line=dict(color=COLORS["11월"], width=2.5),
         mode="lines+markers", marker=dict(size=6), showlegend=False,
-        hovertemplate="D+%{x}<br>누적 GMV2: %{y:,.0f}원<extra>11월</extra>"
+        hovertemplate="<b>11월 블랙위크</b><br>%{x}<br>누적 GMV2: %{y:,.0f}원<extra></extra>"
     ), row=1, col=2)
 
     fig.add_trace(go.Scatter(
         x=d_days[:len(dec_cum)], y=dec_cum,
         name="12월 누적", line=dict(color=COLORS["12월"], width=2.5),
         mode="lines+markers", marker=dict(size=6), showlegend=False,
-        hovertemplate="D+%{x}<br>누적 GMV2: %{y:,.0f}원<extra>12월</extra>"
+        hovertemplate="<b>12월 리빙페스타</b><br>%{x}<br>누적 GMV2: %{y:,.0f}원<extra></extra>"
     ), row=1, col=2)
 
     fig.add_trace(go.Scatter(
         x=d_days[:len(feb_cum)], y=feb_cum,
         name="2월 누적", line=dict(color=COLORS["2월"], width=3),
         mode="lines+markers", marker=dict(size=10), showlegend=False,
-        hovertemplate="D+%{x}<br>누적 GMV2: %{y:,.0f}원<extra>2월</extra>"
+        hovertemplate="<b>2월 리빙페스타</b><br>%{x}<br>누적 GMV2: %{y:,.0f}원<extra></extra>"
     ), row=1, col=2)
 
     # D+1 동기간 비교 하이라이트 (수직선)
