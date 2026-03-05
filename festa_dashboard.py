@@ -1393,7 +1393,15 @@ def create_sourcing_charts():
 # --- 섹션 6: TOP 상품 비교 테이블 ---
 def create_top_products_table(df, month_name, n=15):
     """월별 TOP 15 상품 테이블 HTML (GMV2 셀에 프로그레스 바 포함)"""
-    df_sorted = df.sort_values("gmv2", ascending=False).head(n).reset_index(drop=True)
+    # 같은 상품명끼리 합산 (날짜/옵션별로 나뉜 중복 제거)
+    df_grouped = df.groupby("콘텐츠 상품명", as_index=False).agg({
+        "gmv2": "sum",
+        "판매수량": "sum",
+        "브랜드명": "first",
+        "대카테고리": "first",
+        "소싱유형": "first",
+    })
+    df_sorted = df_grouped.sort_values("gmv2", ascending=False).head(n).reset_index(drop=True)
     max_gmv = df_sorted["gmv2"].max() if len(df_sorted) > 0 else 1
 
     html = f'<div class="tab-content" id="tab-{month_name}">'
